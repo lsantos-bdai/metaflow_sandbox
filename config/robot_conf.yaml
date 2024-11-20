@@ -1,0 +1,21 @@
+sampling:
+  frequency: 5  # Hz
+
+topics:
+  - name: joint_states
+    type: joint_state
+  - name: teleop_ee_pose
+    type: pose
+    save_as: ee_pose
+  - name: teleop_ee_goal_pose
+    type: pose
+    save_as: ee_goal_pose
+  - name: gripper_state
+    type: gripper_state
+    save_as: gripper_cmd
+
+tfs:
+  - name: [workspace, fr3_link0]
+    save_as: base_t_robot
+
+tf_buffer_duration_sec: 10.

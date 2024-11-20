@@ -1,0 +1,40 @@
+{
+  "robot_states": {
+    "joint_states": {
+      "topic": "/joint_states",
+      "msg_type": "JointState"
+    },
+    "ee_pose": {
+      "topic": "/teleop_ee_pose",
+      "msg_type": "PoseStamped"
+    },
+    "ee_goal_pose": {
+      "topic": "/teleop_ee_goal_pose",
+      "msg_type": "PoseStamped"
+    },
+    "gripper_cmd": {
+      "topic": "/gripper_state",
+      "msg_type": "FrankaGripperState"
+    }
+  },
+  "world_states": {
+    "camera0": {
+      "topic": "/camera/camera0/rgbd",
+      "msg_type": "RGBD"
+    },
+    "camera1": {
+      "topic": "/camera/camera1/rgbd",
+      "msg_type": "RGBD"
+    },
+    "camera2": {
+      "topic": "/camera/camera2/rgbd",
+      "msg_type": "RGBD"
+    }
+  },
+  "robot_state_frequency": 5,
+  "world_state_frequency": 5,
+  "base_frame": "workspace",
+  "ee_frame": "fr3_hand_tcp",
+  "robot_frame": "fr3_link0",
+  "demo_num": 0
+}

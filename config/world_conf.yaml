@@ -1,0 +1,23 @@
+sampling:
+  frequency: 5  # Hz
+
+topics:
+  - name: "camera/camera0/rgbd"
+    type: "rgb"
+    save_as: "camera0_rgb"
+    tf: [workspace, camera0_color_optical_frame]
+  - name: "camera/camera1/rgbd"
+    type: "rgb"
+    save_as: "camera1_rgb"
+    tf: [workspace, camera1_color_optical_frame]
+  - name: "camera/camera2/rgbd"
+    type: "rgb"
+    save_as: "camera2_rgb"
+    tf: [workspace, camera2_color_optical_frame]
+
+tfs:
+  - name: [workspace, camera0_color_optical_frame]
+  - name: [workspace, camera1_color_optical_frame]
+  - name: [workspace, camera2_color_optical_frame]
+
+tf_buffer_duration_sec: 10.

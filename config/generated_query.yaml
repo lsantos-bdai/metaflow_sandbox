@@ -1,0 +1,16 @@
+sampling:
+  N: 114
+  dt_sec: 0.2
+  t_start_sec: 1730835041.8804336
+tf_buffer_duration_sec: 10.0
+tfs:
+- - workspace
+  - camera0_color_optical_frame
+- - workspace
+  - camera1_color_optical_frame
+- - workspace
+  - camera2_color_optical_frame
+topics:
+- camera/camera0/rgbd
+- camera/camera1/rgbd
+- camera/camera2/rgbd
