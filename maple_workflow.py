@@ -5,56 +5,89 @@ import shutil
 
 
 class MCAPAnalysisFlow(FlowSpec):
-    bag_id = Parameter("bag_id", help="The bag ID to download", required=True)
+    # bag_id = Parameter("bag_id", help="The bag ID to download", required=True)
+    task_id = Parameter(
+        "task_id",
+        help="The task ID to query (e.g. '11.22.24_green_cube_on_tray')",
+        required=True,
+    )
 
     @step
     def start(self):
-        print(f"Starting analysis for bag: {self.bag_id}")
+        print(f"Starting query for task: {self.task_id}")
 
-        # Create output directories
-        self.output_dir = "output"
-        os.makedirs(os.path.join(self.output_dir, "videos"), exist_ok=True)
-        os.makedirs(os.path.join(self.output_dir, "hdf5"), exist_ok=True)
-        os.makedirs(os.path.join(self.output_dir, "logs"), exist_ok=True)
+        # import dataplatform querying class
+        from bdai_tensors.data_platform_location_provider import (
+            DataPlatformLocationProvider,
+        )
 
-        try:
-            from bdai_cli.data_platform.download import download
-            from tempfile import TemporaryDirectory
+        # Construct the SQL query
+        query = f'WHERE JSON_EXTRACT_SCALAR(extra_json, "$.extra_json.task_id") = "{self.task_id}"'
 
-            with TemporaryDirectory() as tmpdir:
-                # Download the bag
-                print("Downloading bag...")
-                download(
-                    str(self.bag_id), data_local_path=tmpdir, skip_confirmation=True
-                )
+        # Query for all sessions using query parameter
+        location_provider = DataPlatformLocationProvider(
+            user_input=query,
+            session_only=True,
+        )
 
-                # Store the downloaded path for processing
-                self.download_path = tmpdir
+        locations = location_provider()
+        print(f"Locations of sessions: {locations}")
 
-                # Find and process MCAP file
-                mcap_files = []
-                for root, _, files in os.walk(tmpdir):
-                    mcap_files.extend(
-                        [os.path.join(root, f) for f in files if f.endswith(".mcap")]
-                    )
+        # Save the list of session IDs
+        self.session_ids = location_provider.resolved_keys
+        print(f"Sessions found: {self.session_ids}")
 
-                if not mcap_files:
-                    raise Exception("No mcap file found after download")
-
-                self.mcap_file = mcap_files[0]
-                print(f"Found MCAP file: {self.mcap_file}")
-
-                # Extract video
-                self._extract_video()
-
-                # Copy other necessary files
-                self._copy_data_files()
-
-        except Exception as e:
-            print(f"Error occurred: {str(e)}")
-            raise
-
+        # For testing, just move to process_data
         self.next(self.process_data)
+
+    # @step
+    # def start(self):
+    #     print(f"Starting analysis for bag: {self.bag_id}")
+    #
+    #     # Create output directories
+    #     self.output_dir = "output"
+    #     os.makedirs(os.path.join(self.output_dir, "videos"), exist_ok=True)
+    #     os.makedirs(os.path.join(self.output_dir, "hdf5"), exist_ok=True)
+    #     os.makedirs(os.path.join(self.output_dir, "logs"), exist_ok=True)
+    #
+    #     try:
+    #         from bdai_cli.data_platform.download import download
+    #         from tempfile import TemporaryDirectory
+    #
+    #         with TemporaryDirectory() as tmpdir:
+    #             # Download the bag
+    #             print("Downloading bag...")
+    #             download(
+    #                 str(self.bag_id), data_local_path=tmpdir, skip_confirmation=True
+    #             )
+    #
+    #             # Store the downloaded path for processing
+    #             self.download_path = tmpdir
+    #
+    #             # Find and process MCAP file
+    #             mcap_files = []
+    #             for root, _, files in os.walk(tmpdir):
+    #                 mcap_files.extend(
+    #                     [os.path.join(root, f) for f in files if f.endswith(".mcap")]
+    #                 )
+    #
+    #             if not mcap_files:
+    #                 raise Exception("No mcap file found after download")
+    #
+    #             self.mcap_file = mcap_files[0]
+    #             print(f"Found MCAP file: {self.mcap_file}")
+    #
+    #             # Extract video
+    #             self._extract_video()
+    #
+    #             # Copy other necessary files
+    #             self._copy_data_files()
+    #
+    #     except Exception as e:
+    #         print(f"Error occurred: {str(e)}")
+    #         raise
+    #
+    #     self.next(self.process_data)
 
     def _extract_video(self):
         image_topic = "/camera/camera1/color/image_raw"
