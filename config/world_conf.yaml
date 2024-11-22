@@ -4,15 +4,15 @@ sampling:
 topics:
   - name: "camera/camera0/rgbd"
     type: "rgb"
-    save_as: "camera0_rgb"
+    save_as: "camera0"
     tf: [workspace, camera0_color_optical_frame]
   - name: "camera/camera1/rgbd"
     type: "rgb"
-    save_as: "camera1_rgb"
+    save_as: "camera1"
     tf: [workspace, camera1_color_optical_frame]
   - name: "camera/camera2/rgbd"
     type: "rgb"
-    save_as: "camera2_rgb"
+    save_as: "camera2"
     tf: [workspace, camera2_color_optical_frame]
 
 tfs:
