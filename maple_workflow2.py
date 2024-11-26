@@ -24,12 +24,23 @@ class MapleWorkflowLinear(FlowSpec):
     # def start(self):
     #     """Debug environment"""
     #
-    #     # subprocess.run(
-    #     #     ["bdai", "build-packages", "equidiff_ros", "-n", "-1"], check=True
-    #     # )
-    #     subprocess.run(["video_ripper_cli", "-h"], check=True)
-    #     # subprocess.run(["bdai", "source"], check=True)
-    #     subprocess.run(["python", "/workspaces/bdai/projects/maple/scripts/equidiff/equidiff_data_conversion.py", "-h"], check=True)
+    #     print("\nCreating hello world file...")
+    #     # Create a text file with 'hello world'
+    #     with open("hello.txt", "w") as f:
+    #         f.write("hello world")
+    #
+    #     print("\nUploading processed data...")
+    #     self.dst = f"gs://bdai-common-storage/lsantos/{self.task_id}"
+    #
+    #     cmd = [
+    #         "gcloud",
+    #         "storage",
+    #         "cp",
+    #         "hello.txt",  # Changed from self.output_dir to the specific file
+    #         self.dst,
+    #     ]
+    #     subprocess.run(cmd, check=True)
+    #     print(f"Data uploaded to {self.dst}")
     #
     #     self.next(self.end)
 
@@ -160,8 +171,50 @@ class MapleWorkflowLinear(FlowSpec):
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
+        print("\nStarting Training")
+        cmd = [
+            "python",
+            "/workspaces/bdai/projects/maple/src/equidiff/train.py",
+            "--config-name=equi_pointcloud_real",
+            f"dataset_path={os.path.join(self.output_dir, 'training_data.hdf5')}",
+            "training.num_epochs=1000",
+        ]
+        subprocess.run(cmd, check=True)
+
+        # Create checkpoints directory in output
+        os.makedirs(os.path.join(self.output_dir, "checkpoints"), exist_ok=True)
+
+        # Find the latest checkpoint using find command
+        try:
+            result = subprocess.run(
+                [
+                    "find",
+                    "/workspaces/bdai/projects/maple/src/equidiff/data/outputs",
+                    "-name",
+                    "latest.ckpt",
+                ],
+                capture_output=True,
+                text=True,
+                check=True,
+            )
+
+            checkpoint_path = result.stdout.strip()
+            if checkpoint_path:
+                print("\nCopying latest checkpoint...")
+                shutil.copy2(
+                    checkpoint_path,
+                    os.path.join(self.output_dir, "checkpoints/latest.ckpt"),
+                )
+                print("Checkpoint copied successfully")
+            else:
+                print("Warning: Could not find latest.ckpt")
+        except subprocess.CalledProcessError as e:
+            print(f"Error finding checkpoint: {str(e)}")
+
         print("\nUploading processed data...")
-        self.dst = f"gs://project-maple-main-storage/data/lsantos_test/{self.task_id}"
+
+        print("\nUploading processed data...")
+        self.dst = f"gs://bdai-common-storage/lsantos/{self.task_id}"
 
         cmd = [
             "gcloud",
