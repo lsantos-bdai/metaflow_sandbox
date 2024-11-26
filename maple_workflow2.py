@@ -6,13 +6,12 @@ import shutil
 DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/batch-processing/bdai_deploy@sha256:04c464acbd7f90cab1946600a23647916f762e73ea47eb7a3c102e847f8e6b13"
 
 
-class MCAPAnalysisFlow(FlowSpec):
-    task_id = Parameter(
-        "task_id",
-        help="The task ID to query (e.g. '11.22.24_green_cube_on_tray')",
-        required=True,
-    )
+class MapleWorkflowLinear(FlowSpec):
+    task_id = Parameter("task_id", help="The task ID to query", required=True)
 
+    @kubernetes(
+        image=DOCKER_IMAGE, service_account="workflows-team-dc", namespace="team-dc"
+    )
     @step
     def start(self):
         """Process all sessions and organize into a single output structure"""
@@ -75,12 +74,26 @@ class MCAPAnalysisFlow(FlowSpec):
                 print(f"Error processing session {session_id}: {str(e)}")
                 raise
 
-        print("Processing complete")
+        print("\nProcessing complete")
+        print("\nFinal Directory Structure:")
+        print("output/")
+        self._print_directory_tree("output")
+
         self.next(self.end)
 
     @step
     def end(self):
         print("Analysis complete")
+
+    def _print_directory_tree(self, startpath):
+        """Create a visual tree representation of the directory structure"""
+        for root, dirs, files in os.walk(startpath):
+            level = root.replace(startpath, "").count(os.sep)
+            indent = "│   " * (level - 1) + "├── " if level > 0 else ""
+            print(f"{indent}{os.path.basename(root)}/")
+            subindent = "│   " * level + "├── "
+            for f in files:
+                print(f"{subindent}{f}")
 
     def _extract_video(self):
         image_topic = "/camera/camera1/color/image_raw"
@@ -176,4 +189,4 @@ class MCAPAnalysisFlow(FlowSpec):
 
 
 if __name__ == "__main__":
-    MCAPAnalysisFlow()
+    MapleWorkflowLinear()
