@@ -6,10 +6,8 @@ import csv
 import json
 import yaml
 
-# DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/batch-processing/bdai_deploy@sha256:04c464acbd7f90cab1946600a23647916f762e73ea47eb7a3c102e847f8e6b13"
-# DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/batch-processing/bdai_deploy@sha256:efcee80ec3fb153ee125b8447882751bf22b53e3f8b237cb9ff3c9cb132bff59"  # Lucas
-# DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/batch-processing/maple_deploy@sha256:fd761e02867e0a77586ff584a4f285b5cd013ef6586d939216ffd7d2688b3bc6"  # Lucas
-DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:3559521456a185d9c4b84c8c927fc8f0cb83db5d1bed843c8f1595f2a98f1b62"  # Lucas
+DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:3559521456a185d9c4b84c8c927fc8f0cb83db5d1bed843c8f1595f2a98f1b62"
+DOCKER_IMAGE_GPU = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:7c776756ae225eb745354caeeab5504a3c10c5e70e8172e3913781c3a7fa3b8e"
 
 
 class MapleWorkflowLinear(FlowSpec):
@@ -18,16 +16,292 @@ class MapleWorkflowLinear(FlowSpec):
     )
 
     # @kubernetes(
-    #     image=DOCKER_IMAGE, service_account="workflows-team-dc", namespace="team-dc"
+    #     image=DOCKER_IMAGE_GPU,
+    #     service_account="workflows-team-dc",
+    #     namespace="team-dc",
+    #     gpu=1,
+    #     cpu=1,
+    #     node_selector={
+    #         "profile": "gpu-ssd"  # Specify GPU type
+    #     },
     # )
     # @step
     # def start(self):
     #     """Debug environment"""
+    #     from tempfile import TemporaryDirectory
+    #     import torch
     #
-    #     print("\nCreating hello world file...")
-    #     # Create a text file with 'hello world'
-    #     with open("hello.txt", "w") as f:
-    #         f.write("hello world")
+    #     # Check CUDA availability
+    #     print("\nCUDA Setup:")
+    #     print(f"CUDA available: {torch.cuda.is_available()}")
+    #     if torch.cuda.is_available():
+    #         print(f"CUDA device count: {torch.cuda.device_count()}")
+    #         print(f"Current CUDA device: {torch.cuda.current_device()}")
+    #         print(f"Device name: {torch.cuda.get_device_name()}")
+    #
+    #     # Verify pytorch3d import
+    #     print("\nTesting pytorch3d import...")
+    #     try:
+    #         import pytorch3d
+    #
+    #         print(f"pytorch3d version: {pytorch3d.__version__}")
+    #     except Exception as e:
+    #         print(f"Error importing pytorch3d: {e}")
+    #
+    #     # Run nvidia-smi if available
+    #     print("\nGPU Info:")
+    #     try:
+    #         subprocess.run(["nvidia-smi"], check=True)
+    #     except Exception as e:
+    #         print(f"Error running nvidia-smi: {e}")
+    #
+    #     self.next(self.end)
+
+    # - A100: `@kubernetes(node_selector="gpu-a100-ssd")`
+    # - Cheap GPU: `@kubernetes(node_selector="gpu-ssd")`
+
+    @kubernetes(
+        image=DOCKER_IMAGE_GPU,
+        service_account="workflows-team-dc",
+        namespace="team-dc",
+        gpu=1,
+        cpu=1,
+        node_selector={
+            "profile": "gpu-ssd"  # Specify GPU type
+        },
+    )
+    @step
+    def start(self):
+        """Debug environment"""
+        from tempfile import TemporaryDirectory
+
+        self.dst = "gs://bdai-common-storage/lsantos/11.22.24_green_cube_on_tray"
+
+        with TemporaryDirectory() as tmpdir:
+            print("\nDownloading data...")
+            cmd = [
+                "gcloud",
+                "storage",
+                "cp",
+                "-r",
+                self.dst,
+                tmpdir,
+            ]
+            subprocess.run(cmd, check=True)
+
+            print("\nDirectory contents:")
+            self._print_directory_tree(tmpdir)
+
+            print("\nStarting Training")
+            os.environ["WANDB_API_KEY"] = "e654b8d65b121602aede3733bba28ba9610407c7"
+            download_path = os.path.join(tmpdir, "11.22.24_green_cube_on_tray")
+            cmd = [
+                "python",
+                "/workspaces/bdai/projects/maple/src/equidiff/train.py",
+                "--config-name=equi_pointcloud_real",
+                f"dataset_path={os.path.join(download_path, 'training_data.hdf5')}",
+                "training.num_epochs=1000",
+            ]
+            subprocess.run(cmd, check=True)
+
+            # Create checkpoints directory in downloaded path
+            checkpoint_dir = os.path.join(download_path, "checkpoints")
+            os.makedirs(checkpoint_dir, exist_ok=True)
+
+            try:
+                result = subprocess.run(
+                    [
+                        "find",
+                        "/workspaces/bdai/projects/maple/src/equidiff/data/outputs",
+                        "-name",
+                        "latest.ckpt",
+                    ],
+                    capture_output=True,
+                    text=True,
+                    check=True,
+                )
+
+                checkpoint_path = result.stdout.strip()
+                if checkpoint_path:
+                    print("\nCopying latest checkpoint...")
+                    shutil.copy2(
+                        checkpoint_path, os.path.join(checkpoint_dir, "latest.ckpt")
+                    )
+                    print("Checkpoint copied successfully")
+                else:
+                    print("Warning: Could not find latest.ckpt")
+            except subprocess.CalledProcessError as e:
+                print(f"Error finding checkpoint: {str(e)}")
+
+        self.next(self.end)
+
+    # @kubernetes(
+    #     image=DOCKER_IMAGE, service_account="workflows-team-dc", namespace="team-dc"
+    # )
+    # @step
+    # def start(self):
+    #     """Process all sessions and organize into a single output structure"""
+    #     print(f"Starting query for task: {self.task_id}")
+    #
+    #     # Import and query data platform
+    #     from bdai_tensors.data_platform_location_provider import (
+    #         DataPlatformLocationProvider,
+    #     )
+    #
+    #     query = f'WHERE JSON_EXTRACT_SCALAR(extra_json, "$.extra_json.task_id") = "{self.task_id}"'
+    #     location_provider = DataPlatformLocationProvider(
+    #         user_input=query,
+    #         session_only=True,
+    #     )
+    #     locations = location_provider()
+    #     session_ids = location_provider.resolved_keys
+    #     print(f"Sessions found: {session_ids}")
+    #
+    #     # Create base output directory with required structure
+    #     self.output_dir = "output"
+    #     for subdir in ["videos", "hdf5", "logs"]:
+    #         os.makedirs(os.path.join(self.output_dir, subdir), exist_ok=True)
+    #
+    #     from bdai_cli.data_platform.download import download
+    #     from bdai_cli.data_platform.upload import upload
+    #     from tempfile import TemporaryDirectory
+    #
+    #     # Create/open demo.csv to store mapping
+    #     demo_csv_path = os.path.join(self.output_dir, "demo.csv")
+    #     demo_mapping = []
+    #
+    #     for session_id in session_ids:
+    #         print(f"Processing session: {session_id}")
+    #         try:
+    #             with TemporaryDirectory() as tmpdir:
+    #                 # Download session data
+    #                 download(session_id, data_local_path=tmpdir, skip_confirmation=True)
+    #
+    #                 # Find MCAP file
+    #                 mcap_files = []
+    #                 for root, _, files in os.walk(tmpdir):
+    #                     mcap_files.extend(
+    #                         [
+    #                             os.path.join(root, f)
+    #                             for f in files
+    #                             if f.endswith(".mcap")
+    #                         ]
+    #                     )
+    #
+    #                 if not mcap_files:
+    #                     raise Exception("No mcap file found after download")
+    #
+    #                 self.mcap_file = mcap_files[0]
+    #                 self.download_path = tmpdir
+    #
+    #                 # Get demo number before processing
+    #                 source_hdf5 = None
+    #                 for root, dirs, _ in os.walk(tmpdir):
+    #                     if "hdf5" in dirs:
+    #                         source_hdf5 = os.path.join(root, "hdf5")
+    #                         break
+    #
+    #                 if not source_hdf5:
+    #                     raise Exception("No hdf5 directory found")
+    #
+    #                 demo_number = None
+    #                 for item in os.listdir(source_hdf5):
+    #                     if item.startswith("demo_") and os.path.isdir(
+    #                         os.path.join(source_hdf5, item)
+    #                     ):
+    #                         demo_number = item
+    #                         break
+    #
+    #                 if not demo_number:
+    #                     raise Exception("Could not find demo_X directory in hdf5")
+    #
+    #                 # Add to mapping
+    #                 demo_mapping.append([demo_number, session_id])
+    #
+    #                 # Extract video and copy all data files
+    #                 self._extract_video()
+    #                 self._copy_data_files()
+    #
+    #         except Exception as e:
+    #             print(f"Error processing session {session_id}: {str(e)}")
+    #             raise
+    #
+    #     # Write demo mapping to CSV
+    #     with open(demo_csv_path, "w", newline="") as f:
+    #         writer = csv.writer(f)
+    #         demo_mapping.sort(key=lambda x: x[0])  # Sort by demo number
+    #         for mapping in demo_mapping:
+    #             writer.writerow(mapping)
+    #
+    #     print("Running equidiff data conversion...")
+    #     try:
+    #         subprocess.run(
+    #             [
+    #                 "python",
+    #                 "/workspaces/bdai/projects/maple/scripts/equidiff/equidiff_data_conversion.py",
+    #                 "--source",
+    #                 f"{self.output_dir}/hdf5",
+    #                 "--output",
+    #                 f"{self.output_dir}/training_data.hdf5",
+    #                 "--point-cloud",
+    #                 "--collected-data",
+    #                 "--force",
+    #             ],
+    #             check=True,
+    #         )
+    #         print("Data conversion completed successfully")
+    #     except subprocess.CalledProcessError as e:
+    #         print(f"Error during data conversion: {str(e)}")
+    #         raise
+    #
+    #     # Update metadata.json to set raw=false
+    #     metadata_path = os.path.join(self.output_dir, "metadata.json")
+    #     with open(metadata_path, "r") as f:
+    #         metadata = json.load(f)
+    #     metadata["raw"] = False
+    #     with open(metadata_path, "w") as f:
+    #         json.dump(metadata, f, indent=2)
+    #
+    #     # print("\nStarting Training")
+    #     # os.environ['WANDB_API_KEY'] = "e654b8d65b121602aede3733bba28ba9610407c7"
+    #     # cmd = [
+    #     #     "python",
+    #     #     "/workspaces/bdai/projects/maple/src/equidiff/train.py",
+    #     #     "--config-name=equi_pointcloud_real",
+    #     #     f"dataset_path={os.path.join(self.output_dir, 'training_data.hdf5')}",
+    #     #     "training.num_epochs=1000",
+    #     # ]
+    #     # subprocess.run(cmd, check=True)
+    #     #
+    #     # # Create checkpoints directory in output
+    #     # os.makedirs(os.path.join(self.output_dir, "checkpoints"), exist_ok=True)
+    #     #
+    #     # # Find the latest checkpoint using find command
+    #     # try:
+    #     #     result = subprocess.run(
+    #     #         [
+    #     #             "find",
+    #     #             "/workspaces/bdai/projects/maple/src/equidiff/data/outputs",
+    #     #             "-name",
+    #     #             "latest.ckpt",
+    #     #         ],
+    #     #         capture_output=True,
+    #     #         text=True,
+    #     #         check=True,
+    #     #     )
+    #     #
+    #     #     checkpoint_path = result.stdout.strip()
+    #     #     if checkpoint_path:
+    #     #         print("\nCopying latest checkpoint...")
+    #     #         shutil.copy2(
+    #     #             checkpoint_path,
+    #     #             os.path.join(self.output_dir, "checkpoints/latest.ckpt"),
+    #     #         )
+    #     #         print("Checkpoint copied successfully")
+    #     #     else:
+    #     #         print("Warning: Could not find latest.ckpt")
+    #     # except subprocess.CalledProcessError as e:
+    #     #     print(f"Error finding checkpoint: {str(e)}")
     #
     #     print("\nUploading processed data...")
     #     self.dst = f"gs://bdai-common-storage/lsantos/{self.task_id}"
@@ -36,207 +310,23 @@ class MapleWorkflowLinear(FlowSpec):
     #         "gcloud",
     #         "storage",
     #         "cp",
-    #         "hello.txt",  # Changed from self.output_dir to the specific file
+    #         "-r",
+    #         self.output_dir,
     #         self.dst,
     #     ]
     #     subprocess.run(cmd, check=True)
     #     print(f"Data uploaded to {self.dst}")
     #
+    #     print("\nProcessing complete")
+    #     print("\nFinal Directory Structure:")
+    #     print("output/")
+    #     self._print_directory_tree("output")
+    #
+    #     print("\nDemo CSV Contents:")
+    #     with open(os.path.join(self.output_dir, "demo.csv"), "r") as f:
+    #         print(f.read())
+    #
     #     self.next(self.end)
-
-    @kubernetes(
-        image=DOCKER_IMAGE, service_account="workflows-team-dc", namespace="team-dc"
-    )
-    @step
-    def start(self):
-        """Process all sessions and organize into a single output structure"""
-        print(f"Starting query for task: {self.task_id}")
-
-        # Import and query data platform
-        from bdai_tensors.data_platform_location_provider import (
-            DataPlatformLocationProvider,
-        )
-
-        query = f'WHERE JSON_EXTRACT_SCALAR(extra_json, "$.extra_json.task_id") = "{self.task_id}"'
-        location_provider = DataPlatformLocationProvider(
-            user_input=query,
-            session_only=True,
-        )
-        locations = location_provider()
-        session_ids = location_provider.resolved_keys
-        print(f"Sessions found: {session_ids}")
-
-        # Create base output directory with required structure
-        self.output_dir = "output"
-        for subdir in ["videos", "hdf5", "logs"]:
-            os.makedirs(os.path.join(self.output_dir, subdir), exist_ok=True)
-
-        from bdai_cli.data_platform.download import download
-        from bdai_cli.data_platform.upload import upload
-        from tempfile import TemporaryDirectory
-
-        # Create/open demo.csv to store mapping
-        demo_csv_path = os.path.join(self.output_dir, "demo.csv")
-        demo_mapping = []
-
-        for session_id in session_ids:
-            print(f"Processing session: {session_id}")
-            try:
-                with TemporaryDirectory() as tmpdir:
-                    # Download session data
-                    download(session_id, data_local_path=tmpdir, skip_confirmation=True)
-
-                    # Find MCAP file
-                    mcap_files = []
-                    for root, _, files in os.walk(tmpdir):
-                        mcap_files.extend(
-                            [
-                                os.path.join(root, f)
-                                for f in files
-                                if f.endswith(".mcap")
-                            ]
-                        )
-
-                    if not mcap_files:
-                        raise Exception("No mcap file found after download")
-
-                    self.mcap_file = mcap_files[0]
-                    self.download_path = tmpdir
-
-                    # Get demo number before processing
-                    source_hdf5 = None
-                    for root, dirs, _ in os.walk(tmpdir):
-                        if "hdf5" in dirs:
-                            source_hdf5 = os.path.join(root, "hdf5")
-                            break
-
-                    if not source_hdf5:
-                        raise Exception("No hdf5 directory found")
-
-                    demo_number = None
-                    for item in os.listdir(source_hdf5):
-                        if item.startswith("demo_") and os.path.isdir(
-                            os.path.join(source_hdf5, item)
-                        ):
-                            demo_number = item
-                            break
-
-                    if not demo_number:
-                        raise Exception("Could not find demo_X directory in hdf5")
-
-                    # Add to mapping
-                    demo_mapping.append([demo_number, session_id])
-
-                    # Extract video and copy all data files
-                    self._extract_video()
-                    self._copy_data_files()
-
-            except Exception as e:
-                print(f"Error processing session {session_id}: {str(e)}")
-                raise
-
-        # Write demo mapping to CSV
-        with open(demo_csv_path, "w", newline="") as f:
-            writer = csv.writer(f)
-            demo_mapping.sort(key=lambda x: x[0])  # Sort by demo number
-            for mapping in demo_mapping:
-                writer.writerow(mapping)
-
-        print("Running equidiff data conversion...")
-        try:
-            subprocess.run(
-                [
-                    "python",
-                    "/workspaces/bdai/projects/maple/scripts/equidiff/equidiff_data_conversion.py",
-                    "--source",
-                    f"{self.output_dir}/hdf5",
-                    "--output",
-                    f"{self.output_dir}/training_data.hdf5",
-                    "--point-cloud",
-                    "--collected-data",
-                    "--force",
-                ],
-                check=True,
-            )
-            print("Data conversion completed successfully")
-        except subprocess.CalledProcessError as e:
-            print(f"Error during data conversion: {str(e)}")
-            raise
-
-        # Update metadata.json to set raw=false
-        metadata_path = os.path.join(self.output_dir, "metadata.json")
-        with open(metadata_path, "r") as f:
-            metadata = json.load(f)
-        metadata["raw"] = False
-        with open(metadata_path, "w") as f:
-            json.dump(metadata, f, indent=2)
-
-        print("\nStarting Training")
-        cmd = [
-            "python",
-            "/workspaces/bdai/projects/maple/src/equidiff/train.py",
-            "--config-name=equi_pointcloud_real",
-            f"dataset_path={os.path.join(self.output_dir, 'training_data.hdf5')}",
-            "training.num_epochs=1000",
-        ]
-        subprocess.run(cmd, check=True)
-
-        # Create checkpoints directory in output
-        os.makedirs(os.path.join(self.output_dir, "checkpoints"), exist_ok=True)
-
-        # Find the latest checkpoint using find command
-        try:
-            result = subprocess.run(
-                [
-                    "find",
-                    "/workspaces/bdai/projects/maple/src/equidiff/data/outputs",
-                    "-name",
-                    "latest.ckpt",
-                ],
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            checkpoint_path = result.stdout.strip()
-            if checkpoint_path:
-                print("\nCopying latest checkpoint...")
-                shutil.copy2(
-                    checkpoint_path,
-                    os.path.join(self.output_dir, "checkpoints/latest.ckpt"),
-                )
-                print("Checkpoint copied successfully")
-            else:
-                print("Warning: Could not find latest.ckpt")
-        except subprocess.CalledProcessError as e:
-            print(f"Error finding checkpoint: {str(e)}")
-
-        print("\nUploading processed data...")
-
-        print("\nUploading processed data...")
-        self.dst = f"gs://bdai-common-storage/lsantos/{self.task_id}"
-
-        cmd = [
-            "gcloud",
-            "storage",
-            "cp",
-            "-r",
-            self.output_dir,
-            self.dst,
-        ]
-        subprocess.run(cmd, check=True)
-        print(f"Data uploaded to {self.dst}")
-
-        print("\nProcessing complete")
-        print("\nFinal Directory Structure:")
-        print("output/")
-        self._print_directory_tree("output")
-
-        print("\nDemo CSV Contents:")
-        with open(os.path.join(self.output_dir, "demo.csv"), "r") as f:
-            print(f.read())
-
-        self.next(self.end)
 
     @step
     def end(self):

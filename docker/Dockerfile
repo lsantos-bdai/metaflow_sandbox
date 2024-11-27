@@ -5,3 +5,6 @@ RUN curl -L https://github.com/foxglove/mcap/releases/latest/download/mcap-linux
     chmod +x /usr/local/bin/mcap
 
 RUN bdai build bdai -n -1
+
+# Install pytorch3d from source with CUDA support
+RUN pip install --no-cache-dir git+https://github.com/facebookresearch/pytorch3d.git@v0.7.7
