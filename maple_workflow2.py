@@ -8,7 +8,10 @@ import yaml
 import time
 
 DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:3559521456a185d9c4b84c8c927fc8f0cb83db5d1bed843c8f1595f2a98f1b62"
-DOCKER_IMAGE_GPU = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:98c16caacf96eddbbf3dfa470f140d38a1f46d40a8b74ad86908dce932765b4c"
+# DOCKER_IMAGE_GPU = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:98c16caacf96eddbbf3dfa470f140d38a1f46d40a8b74ad86908dce932765b4c"
+DOCKER_IMAGE_GPU = (
+    "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test:metaflow_v2_gpu"
+)
 
 
 class MapleWorkflowLinear(FlowSpec):
@@ -22,15 +25,39 @@ class MapleWorkflowLinear(FlowSpec):
     #     namespace="team-dc",
     #     gpu=1,
     #     cpu=1,
-    #     node_selector={
-    #         "profile": "gpu-ssd"  # Specify GPU type
-    #     },
+    #     node_selector={"profile": "gpu-ssd"},  # Specify GPU type
     # )
     # @step
     # def start(self):
     #     """Debug environment"""
     #     from tempfile import TemporaryDirectory
     #     import torch
+    #     import os
+    #
+    #     # Create hello world text file in current directory
+    #     self.output_dir = os.path.abspath("hello_world_output")
+    #     os.makedirs(self.output_dir, exist_ok=True)
+    #
+    #     # Create the file with absolute path
+    #     file_path = os.path.join(self.output_dir, "hello_world.txt")
+    #     with open(file_path, "w") as f:
+    #         f.write("Hello World!")
+    #
+    #     # Verify file exists
+    #     print(f"\nCreated file at: {file_path}")
+    #     print(f"File exists: {os.path.exists(file_path)}")
+    #     print(f"Directory contents: {os.listdir(self.output_dir)}")
+    #
+    #     print("Checking git status")
+    #     cmd = [
+    #         "git",
+    #         "log",
+    #         "-1",
+    #         "--pretty=format:commit %H%nAuthor: %an <%ae>%nDate:   %ad",
+    #     ]
+    #     os.chdir("/workspaces/bdai")
+    #     result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+    #     print(result.stdout)
     #
     #     # Check CUDA availability
     #     print("\nCUDA Setup:")
@@ -55,6 +82,27 @@ class MapleWorkflowLinear(FlowSpec):
     #         subprocess.run(["nvidia-smi"], check=True)
     #     except Exception as e:
     #         print(f"Error running nvidia-smi: {e}")
+    #
+    #     # Upload with explicit path checking
+    #     print("\nUploading processed data...")
+    #     self.dst = f"gs://project-maple-main-storage/data/lsantos_test/{self.task_id}"
+    #
+    #     # Verify source exists before upload
+    #     if not os.path.exists(self.output_dir):
+    #         raise FileNotFoundError(f"Output directory not found: {self.output_dir}")
+    #
+    #     cmd = [
+    #         "gcloud",
+    #         "storage",
+    #         "cp",
+    #         "-r",
+    #         self.output_dir,  # Copy contents of directory
+    #         self.dst,
+    #     ]
+    #
+    #     print(f"Running upload command: {' '.join(cmd)}")
+    #     subprocess.run(cmd, check=True)
+    #     print(f"Data uploaded to {self.dst}")
     #
     #     self.next(self.end)
 
@@ -258,14 +306,14 @@ class MapleWorkflowLinear(FlowSpec):
         with open(metadata_path, "w") as f:
             json.dump(metadata, f, indent=2)
 
-        os.environ["WANDB_API_KEY"] = ""
+        os.environ["WANDB_API_KEY"] = "e654b8d65b121602aede3733bba28ba9610407c7"
         print("\nStarting Training")
         cmd = [
             "python",
             "/workspaces/bdai/projects/maple/src/equidiff/train.py",
             "--config-name=equi_pointcloud_real",
             f"dataset_path={os.path.join(self.output_dir, 'training_data.hdf5')}",
-            "training.num_epochs=60",
+            "training.num_epochs=1000",
         ]
         subprocess.run(cmd, check=True)
 
@@ -293,7 +341,8 @@ class MapleWorkflowLinear(FlowSpec):
             print(f"Error handling checkpoint: {str(e)}")
 
         print("\nUploading processed data...")
-        self.dst = f"gs://bdai-common-storage/lsantos/{self.task_id}"
+        # self.dst = f"gs://bdai-common-storage/lsantos/{self.task_id}"
+        self.dst = f"gs://project-maple-main-storage/data/HIL_test/{self.task_id}"
 
         cmd = [
             "gcloud",
