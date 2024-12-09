@@ -25,7 +25,7 @@ class MapleWorkflowLinear(FlowSpec):
     #     namespace="team-dc",
     #     gpu=1,
     #     cpu=1,
-    #     node_selector={"profile": "gpu-ssd"},  # Specify GPU type
+    #     node_selector={"profile": "gpu-a100-ssd"},  # Specify GPU type
     # )
     # @step
     # def start(self):
@@ -33,20 +33,6 @@ class MapleWorkflowLinear(FlowSpec):
     #     from tempfile import TemporaryDirectory
     #     import torch
     #     import os
-    #
-    #     # Create hello world text file in current directory
-    #     self.output_dir = os.path.abspath("hello_world_output")
-    #     os.makedirs(self.output_dir, exist_ok=True)
-    #
-    #     # Create the file with absolute path
-    #     file_path = os.path.join(self.output_dir, "hello_world.txt")
-    #     with open(file_path, "w") as f:
-    #         f.write("Hello World!")
-    #
-    #     # Verify file exists
-    #     print(f"\nCreated file at: {file_path}")
-    #     print(f"File exists: {os.path.exists(file_path)}")
-    #     print(f"Directory contents: {os.listdir(self.output_dir)}")
     #
     #     print("Checking git status")
     #     cmd = [
@@ -83,26 +69,40 @@ class MapleWorkflowLinear(FlowSpec):
     #     except Exception as e:
     #         print(f"Error running nvidia-smi: {e}")
     #
-    #     # Upload with explicit path checking
-    #     print("\nUploading processed data...")
-    #     self.dst = f"gs://project-maple-main-storage/data/lsantos_test/{self.task_id}"
-    #
-    #     # Verify source exists before upload
-    #     if not os.path.exists(self.output_dir):
-    #         raise FileNotFoundError(f"Output directory not found: {self.output_dir}")
-    #
-    #     cmd = [
-    #         "gcloud",
-    #         "storage",
-    #         "cp",
-    #         "-r",
-    #         self.output_dir,  # Copy contents of directory
-    #         self.dst,
-    #     ]
-    #
-    #     print(f"Running upload command: {' '.join(cmd)}")
-    #     subprocess.run(cmd, check=True)
-    #     print(f"Data uploaded to {self.dst}")
+    #     # # Create hello world text file in current directory
+    #     # self.output_dir = os.path.abspath("hello_world_output")
+    #     # os.makedirs(self.output_dir, exist_ok=True)
+    #     #
+    #     # # Create the file with absolute path
+    #     # file_path = os.path.join(self.output_dir, "hello_world.txt")
+    #     # with open(file_path, "w") as f:
+    #     #     f.write("Hello World!")
+    #     #
+    #     # # Verify file exists
+    #     # print(f"\nCreated file at: {file_path}")
+    #     # print(f"File exists: {os.path.exists(file_path)}")
+    #     # print(f"Directory contents: {os.listdir(self.output_dir)}")
+    #     #
+    #     # # Upload with explicit path checking
+    #     # print("\nUploading processed data...")
+    #     # self.dst = f"gs://project-maple-main-storage/data/lsantos_test/{self.task_id}"
+    #     #
+    #     # # Verify source exists before upload
+    #     # if not os.path.exists(self.output_dir):
+    #     #     raise FileNotFoundError(f"Output directory not found: {self.output_dir}")
+    #     #
+    #     # cmd = [
+    #     #     "gcloud",
+    #     #     "storage",
+    #     #     "cp",
+    #     #     "-r",
+    #     #     self.output_dir,  # Copy contents of directory
+    #     #     self.dst,
+    #     # ]
+    #     #
+    #     # print(f"Running upload command: {' '.join(cmd)}")
+    #     # subprocess.run(cmd, check=True)
+    #     # print(f"Data uploaded to {self.dst}")
     #
     #     self.next(self.end)
 
@@ -180,11 +180,49 @@ class MapleWorkflowLinear(FlowSpec):
         namespace="team-dc",
         gpu=1,
         cpu=1,
-        node_selector={"profile": "gpu-ssd"},  # Specify GPU type
+        node_selector={"profile": "gpu-a100-ssd"},  # Specify GPU type
     )
     @step
     def start(self):
         """Process all sessions and organize into a single output structure"""
+
+        import torch
+
+        print("Checking git status")
+        cmd = [
+            "git",
+            "log",
+            "-1",
+            "--pretty=format:commit %H%nAuthor: %an <%ae>%nDate:   %ad",
+        ]
+        os.chdir("/workspaces/bdai")
+        result = subprocess.run(cmd, check=True, capture_output=True, text=True)
+        print(result.stdout)
+
+        # Check CUDA availability
+        print("\nCUDA Setup:")
+        print(f"CUDA available: {torch.cuda.is_available()}")
+        if torch.cuda.is_available():
+            print(f"CUDA device count: {torch.cuda.device_count()}")
+            print(f"Current CUDA device: {torch.cuda.current_device()}")
+            print(f"Device name: {torch.cuda.get_device_name()}")
+
+        # Verify pytorch3d import
+        print("\nTesting pytorch3d import...")
+        try:
+            import pytorch3d
+
+            print(f"pytorch3d version: {pytorch3d.__version__}")
+        except Exception as e:
+            print(f"Error importing pytorch3d: {e}")
+
+        # Run nvidia-smi if available
+        print("\nGPU Info:")
+        try:
+            subprocess.run(["nvidia-smi"], check=True)
+        except Exception as e:
+            print(f"Error running nvidia-smi: {e}")
+
         print(f"Starting query for task: {self.task_id}")
 
         # Import and query data platform
@@ -317,14 +355,13 @@ class MapleWorkflowLinear(FlowSpec):
         ]
         subprocess.run(cmd, check=True)
 
-
         # Create checkpoints directory in output
         os.makedirs(os.path.join(self.output_dir, "checkpoints"), exist_ok=True)
 
         # Search in /metaflow for latest.ckpt
         try:
             result = subprocess.run(
-                ["find", "/metaflow", "-name", "latest.ckpt"],
+                ["find", "/workspaces/bdai/data", "-name", "latest.ckpt"],
                 capture_output=True,
                 text=True,
                 check=True,
