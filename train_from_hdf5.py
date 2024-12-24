@@ -116,14 +116,14 @@ class TrainFromHDF5(FlowSpec):
                 "/workspaces/bdai/projects/maple/src/equidiff/train.py",
                 "--config-name=equi_pointcloud_real",
                 f"dataset_path={os.path.join(self.output_dir, 'training_data.hdf5')}",
-                "training.num_epochs=50",
+                "training.num_epochs=1000",
             ],
             check=True,
         )
 
         # Copy checkpoint
         checkpoint_path = subprocess.run(
-            ["find", "/workspaces/bdai/data", "-name", "latest.ckpt"],
+            ["find", "/metaflow/data", "-name", "latest.ckpt"],
             capture_output=True,
             text=True,
             check=True,
