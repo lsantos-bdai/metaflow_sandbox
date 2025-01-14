@@ -1,4 +1,4 @@
-FROM us-docker.pkg.dev/engineering-380817/batch-processing/maple_deploy@sha256:fd761e02867e0a77586ff584a4f285b5cd013ef6586d939216ffd7d2688b3bc6
+FROM us-docker.pkg.dev/engineering-380817/batch-processing/maple_deploy:main
 
 # Install mcap CLI tool
 RUN curl -L https://github.com/foxglove/mcap/releases/latest/download/mcap-linux-amd64 -o /usr/local/bin/mcap && \

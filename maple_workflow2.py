@@ -179,7 +179,7 @@ class MapleWorkflowLinear(FlowSpec):
         service_account="workflows-team-dc",
         namespace="team-dc",
         gpu=1,
-        cpu=1,
+        cpu=16,
         node_selector={"profile": "gpu-a100-ssd"},  # Specify GPU type
     )
     @step
@@ -352,6 +352,8 @@ class MapleWorkflowLinear(FlowSpec):
             "--config-name=equi_pointcloud_real",
             f"dataset_path={os.path.join(self.output_dir, 'training_data.hdf5')}",
             "training.num_epochs=1000",
+            "dataloader.batch_size=192",
+            "dataloader.num_workers=16",
         ]
         subprocess.run(cmd, check=True)
 

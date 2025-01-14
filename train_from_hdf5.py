@@ -10,14 +10,16 @@ DOCKER_IMAGE_GPU = (
 
 
 class TrainFromHDF5(FlowSpec):
-    task_query_id = Parameter("task_query_id", type=str, help="task_id to train", required=True)
+    task_query_id = Parameter(
+        "task_query_id", type=str, help="task_id to train", required=True
+    )
 
     @kubernetes(
         image=DOCKER_IMAGE_GPU,
         service_account="workflows-team-dc",
         namespace="team-dc",
         gpu=1,
-        cpu=1,
+        cpu=16,
         node_selector={"profile": "gpu-a100-ssd"},
     )
     @step
@@ -117,6 +119,8 @@ class TrainFromHDF5(FlowSpec):
                 "--config-name=equi_pointcloud_real",
                 f"dataset_path={os.path.join(self.output_dir, 'training_data.hdf5')}",
                 "training.num_epochs=1000",
+                "dataloader.batch_size=192",
+                "dataloader.num_workers=16",
             ],
             check=True,
         )
