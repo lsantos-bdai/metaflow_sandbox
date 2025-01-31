@@ -4,7 +4,8 @@ FROM us-docker.pkg.dev/engineering-380817/batch-processing/maple_deploy:main
 RUN curl -L https://github.com/foxglove/mcap/releases/latest/download/mcap-linux-amd64 -o /usr/local/bin/mcap && \
     chmod +x /usr/local/bin/mcap
 
-RUN bdai build bdai -n -1
+# RUN bdai build bdai -n -1
+RUN bdai build-packages video_tools -n -1
 
 # Install NVIDIA CUB
 RUN mkdir -p /usr/local/cub && \
