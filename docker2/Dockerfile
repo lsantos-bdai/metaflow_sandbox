@@ -51,7 +51,11 @@ RUN $BDAI/scripts/setup_repo.sh
 
 RUN echo "y" | bdai clean
 RUN echo "y" | bdai update -co
-RUN bdai update --force
+RUN bdai update --skip-changes
 
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && bdai build-packages video_tools -n -1"
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && bdai build-packages equidiff_ros data_collection -n -1"
+
+# Add this at the end of your Dockerfile
+RUN echo "source /opt/ros/humble/setup.bash" >> /root/.bashrc && \
+    echo "source /workspaces/bdai/_build/install/setup.bash" >> /root/.bashrc
