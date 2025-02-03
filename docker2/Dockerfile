@@ -15,29 +15,37 @@ RUN gh auth login --with-token < /workspace/key.txt \
 RUN curl -L https://github.com/foxglove/mcap/releases/latest/download/mcap-linux-amd64 -o /usr/local/bin/mcap && \
     chmod +x /usr/local/bin/mcap
 
-# Install NVIDIA CUB
-RUN mkdir -p /usr/local/cub && \
-    cd /usr/local/cub && \
-    curl -L https://github.com/NVIDIA/cub/archive/refs/tags/2.1.0.tar.gz | tar -xz && \
-    mv cub-2.1.0 cub
-ENV CUB_HOME=/usr/local/cub/cub
+# Install system dependencies first
+RUN apt-get update && apt-get install -y \
+    nvidia-cuda-toolkit \
+    nvidia-cuda-dev \
+    libglew-dev \
+    && rm -rf /var/lib/apt/lists/*
 
-# CUDA setup
-ENV FORCE_CUDA=1
-ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX"
-
-# Install PyTorch dependencies
+# Install PyTorch and other dependencies
 RUN pip install --no-cache-dir \
-    torch \
-    torchvision \
+    torch==2.1.0+cu121 \
+    torchvision==0.16.0+cu121 \
+    -f https://download.pytorch.org/whl/torch_stable.html \
     fvcore \
     iopath \
     ninja \
     setuptools
 
-# Clone and install PyTorch3D 
+# CUDA setup
+ENV FORCE_CUDA=1
+ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX"
+
+# Install PyTorch3D from source with specific compiler flags
 RUN pip uninstall -y pytorch3d
-RUN pip install --no-cache-dir git+https://github.com/facebookresearch/pytorch3d.git@v0.7.7
+RUN FORCE_CUDA=1 \
+    CPATH=/usr/local/cuda/include:$CPATH \
+    git clone https://github.com/facebookresearch/pytorch3d.git && \
+    cd pytorch3d && \
+    git checkout v0.7.7 && \
+    FORCE_CUDA=1 \
+    TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX" \
+    pip install -e .
 
 # Clone and setup BDAI
 RUN git clone https://github.com/bdaiinstitute/bdai.git /workspaces/bdai
