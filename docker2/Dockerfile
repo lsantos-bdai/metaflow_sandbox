@@ -25,9 +25,6 @@ ENV CUB_HOME=/usr/local/cub/cub
 # CUDA setup
 ENV FORCE_CUDA=1
 ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX"
-ENV CUDA_HOME=/usr/local/cuda
-ENV MAX_JOBS=4
-ENV PYTORCH3D_NO_NINJA=1
 
 # Install PyTorch dependencies
 RUN pip install --no-cache-dir \
@@ -38,9 +35,9 @@ RUN pip install --no-cache-dir \
     ninja \
     setuptools
 
-# Install PyTorch3D
-RUN pip install --no-cache-dir pytorch3d || \
-    pip install --no-cache-dir "git+https://github.com/facebookresearch/pytorch3d.git@v0.7.7"
+# Clone and install PyTorch3D 
+RUN pip uninstall -y pytorch3d
+RUN pip install --no-cache-dir git+https://github.com/facebookresearch/pytorch3d.git@v0.7.7
 
 # Clone and setup BDAI
 RUN git clone https://github.com/bdaiinstitute/bdai.git /workspaces/bdai
@@ -64,9 +61,5 @@ ENV BASH_ENV="/root/.profile"
 # Setup library path
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu/"
 RUN ldconfig /usr/lib/x86_64-linux-gnu/
-
-# Clone and install PyTorch3D 
-RUN pip uninstall -y pytorch3d
-RUN pip install --no-cache-dir git+https://github.com/facebookresearch/pytorch3d.git@v0.7.7
 
 CMD [ "bash" ]
