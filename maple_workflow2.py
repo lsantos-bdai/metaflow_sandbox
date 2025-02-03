@@ -7,11 +7,10 @@ import json
 import yaml
 import time
 
-# DOCKER_IMAGE = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:3559521456a185d9c4b84c8c927fc8f0cb83db5d1bed843c8f1595f2a98f1b62"
-DOCKER_IMAGE_GPU = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:7bb0bf81a606da6a566f1fbe5f9e5c7d13a85d1dad57c57215d4ce06e60c6638"
-# DOCKER_IMAGE_GPU = (
-#     "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test:metaflow_v3_gpu"
-# )
+# DOCKER_IMAGE_GPU = "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test@sha256:7bb0bf81a606da6a566f1fbe5f9e5c7d13a85d1dad57c57215d4ce06e60c6638"
+DOCKER_IMAGE_GPU = (
+    "us-docker.pkg.dev/engineering-380817/bdai/dc/workflows/maple_test:metaflow_v3_gpu"
+)
 
 
 class MapleWorkflowLinear(FlowSpec):
@@ -31,16 +30,6 @@ class MapleWorkflowLinear(FlowSpec):
     def start(self):
         """Process all sessions and organize into a single output structure"""
         import torch
-
-        # Source ROS setup files
-        subprocess.run(
-            "source /opt/ros/humble/setup.bash", shell=True, executable="/bin/bash"
-        )
-        subprocess.run(
-            "source /workspaces/bdai/_build/install/setup.bash",
-            shell=True,
-            executable="/bin/bash",
-        )
 
         # Check if video_ripper_cli is available
         result = subprocess.run(
@@ -377,158 +366,3 @@ class MapleWorkflowLinear(FlowSpec):
 
 if __name__ == "__main__":
     MapleWorkflowLinear()
-
-    # @kubernetes(
-    #     image=DOCKER_IMAGE_GPU,
-    #     service_account="workflows-team-dc",
-    #     namespace="team-dc",
-    #     gpu=1,
-    #     cpu=1,
-    #     node_selector={"profile": "gpu-a100-ssd"},  # Specify GPU type
-    # )
-    # @step
-    # def start(self):
-    #     """Debug environment"""
-    #     from tempfile import TemporaryDirectory
-    #     import torch
-    #     import os
-    #
-    #     print("Checking git status")
-    #     cmd = [
-    #         "git",
-    #         "log",
-    #         "-1",
-    #         "--pretty=format:commit %H%nAuthor: %an <%ae>%nDate:   %ad",
-    #     ]
-    #     os.chdir("/workspaces/bdai")
-    #     result = subprocess.run(cmd, check=True, capture_output=True, text=True)
-    #     print(result.stdout)
-    #
-    #     # Check CUDA availability
-    #     print("\nCUDA Setup:")
-    #     print(f"CUDA available: {torch.cuda.is_available()}")
-    #     if torch.cuda.is_available():
-    #         print(f"CUDA device count: {torch.cuda.device_count()}")
-    #         print(f"Current CUDA device: {torch.cuda.current_device()}")
-    #         print(f"Device name: {torch.cuda.get_device_name()}")
-    #
-    #     # Verify pytorch3d import
-    #     print("\nTesting pytorch3d import...")
-    #     try:
-    #         import pytorch3d
-    #
-    #         print(f"pytorch3d version: {pytorch3d.__version__}")
-    #     except Exception as e:
-    #         print(f"Error importing pytorch3d: {e}")
-    #
-    #     # Run nvidia-smi if available
-    #     print("\nGPU Info:")
-    #     try:
-    #         subprocess.run(["nvidia-smi"], check=True)
-    #     except Exception as e:
-    #         print(f"Error running nvidia-smi: {e}")
-    #
-    #     # # Create hello world text file in current directory
-    #     # self.output_dir = os.path.abspath("hello_world_output")
-    #     # os.makedirs(self.output_dir, exist_ok=True)
-    #     #
-    #     # # Create the file with absolute path
-    #     # file_path = os.path.join(self.output_dir, "hello_world.txt")
-    #     # with open(file_path, "w") as f:
-    #     #     f.write("Hello World!")
-    #     #
-    #     # # Verify file exists
-    #     # print(f"\nCreated file at: {file_path}")
-    #     # print(f"File exists: {os.path.exists(file_path)}")
-    #     # print(f"Directory contents: {os.listdir(self.output_dir)}")
-    #     #
-    #     # # Upload with explicit path checking
-    #     # print("\nUploading processed data...")
-    #     # self.dst = f"gs://project-maple-main-storage/data/lsantos_test/{self.task_id}"
-    #     #
-    #     # # Verify source exists before upload
-    #     # if not os.path.exists(self.output_dir):
-    #     #     raise FileNotFoundError(f"Output directory not found: {self.output_dir}")
-    #     #
-    #     # cmd = [
-    #     #     "gcloud",
-    #     #     "storage",
-    #     #     "cp",
-    #     #     "-r",
-    #     #     self.output_dir,  # Copy contents of directory
-    #     #     self.dst,
-    #     # ]
-    #     #
-    #     # print(f"Running upload command: {' '.join(cmd)}")
-    #     # subprocess.run(cmd, check=True)
-    #     # print(f"Data uploaded to {self.dst}")
-    #
-    #     self.next(self.end)
-
-    # - A100: `@kubernetes(node_selector="gpu-a100-ssd")`
-    # - Cheap GPU: `@kubernetes(node_selector="gpu-ssd")`
-
-    # @kubernetes(
-    #     image=DOCKER_IMAGE_GPU,
-    #     service_account="workflows-team-dc",
-    #     namespace="team-dc",
-    #     gpu=1,
-    #     cpu=1,
-    #     node_selector={"profile": "gpu-ssd"},  # Specify GPU type
-    # )
-    # @step
-    # def start(self):
-    #     """Debug environment"""
-    #     from tempfile import TemporaryDirectory
-    #
-    #     self.dst = "gs://bdai-common-storage/lsantos/11.22.24_green_cube_on_tray"
-    #
-    #     with TemporaryDirectory() as tmpdir:
-    #         print("\nDownloading data...")
-    #         cmd = [
-    #             "gcloud",
-    #             "storage",
-    #             "cp",
-    #             "-r",
-    #             self.dst,
-    #             tmpdir,
-    #         ]
-    #         subprocess.run(cmd, check=True)
-    #
-    #         print("\nDirectory contents:")
-    #         self._print_directory_tree(tmpdir)
-    #
-    #         print("\nStarting Training")
-    #         os.environ["BDAI"] = "/workspaces/bdai"
-    #         os.environ["WANDB_API_KEY"] = ""
-    #         download_path = os.path.join(tmpdir, "11.22.24_green_cube_on_tray")
-    #         cmd = [
-    #             "python",
-    #             "/workspaces/bdai/projects/maple/src/equidiff/train.py",
-    #             "--config-name=equi_pointcloud_real",
-    #             f"dataset_path={os.path.join(download_path, 'training_data.hdf5')}",
-    #             "training.num_epochs=3",
-    #         ]
-    #         subprocess.run(cmd, check=True)
-    #
-    #         # Create checkpoints directory in downloaded path
-    #         checkpoint_dir = os.path.join(download_path, "checkpoints")
-    #         os.makedirs(checkpoint_dir, exist_ok=True)
-    #
-    #         # Try to find and copy checkpoint
-    #         checkpoint_path = self._find_checkpoint(max_retries=3, sleep_duration=10)
-    #         if checkpoint_path:
-    #             print("\nCopying checkpoint...")
-    #             try:
-    #                 shutil.copy2(
-    #                     checkpoint_path,
-    #                     os.path.join(self.output_dir, "checkpoints/latest.ckpt"),
-    #                 )
-    #                 print("Checkpoint copied successfully")
-    #             except Exception as e:
-    #                 print(f"Error copying checkpoint: {str(e)}")
-    #
-    #         print("\nCurrent directory structure:")
-    #         self._print_directory_tree(download_path)
-    #
-    #     self.next(self.end)

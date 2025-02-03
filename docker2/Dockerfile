@@ -65,4 +65,8 @@ ENV BASH_ENV="/root/.profile"
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu/"
 RUN ldconfig /usr/lib/x86_64-linux-gnu/
 
+# Clone and install PyTorch3D 
+RUN pip uninstall -y pytorch3d
+RUN pip install --no-cache-dir git+https://github.com/facebookresearch/pytorch3d.git@v0.7.7
+
 CMD [ "bash" ]
