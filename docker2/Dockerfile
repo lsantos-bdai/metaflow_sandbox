@@ -3,6 +3,11 @@ FROM us-docker.pkg.dev/engineering-380817/bdai/bdai_maple:main
 # Environment variables
 ENV BDAI="/workspaces/bdai"
 ENV ROOT_HOME="/root"
+ENV CUDA_HOME=/usr/local/cuda
+ENV PATH=${CUDA_HOME}/bin:${PATH}
+ENV LD_LIBRARY_PATH=${CUDA_HOME}/lib64:${LD_LIBRARY_PATH}
+ENV FORCE_CUDA=1
+ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX"
 
 # Copy the key.txt file into the container
 COPY key.txt /workspace/key.txt
@@ -22,31 +27,6 @@ RUN apt-get update && apt-get install -y \
     libglew-dev \
     && rm -rf /var/lib/apt/lists/*
 
-# Install PyTorch and other dependencies
-RUN pip install --no-cache-dir \
-    torch==2.1.0+cu121 \
-    torchvision==0.16.0+cu121 \
-    -f https://download.pytorch.org/whl/torch_stable.html \
-    fvcore \
-    iopath \
-    ninja \
-    setuptools
-
-# CUDA setup
-ENV FORCE_CUDA=1
-ENV TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX"
-
-# Install PyTorch3D from source with specific compiler flags
-RUN pip uninstall -y pytorch3d
-RUN FORCE_CUDA=1 \
-    CPATH=/usr/local/cuda/include:$CPATH \
-    git clone https://github.com/facebookresearch/pytorch3d.git && \
-    cd pytorch3d && \
-    git checkout v0.7.7 && \
-    FORCE_CUDA=1 \
-    TORCH_CUDA_ARCH_LIST="6.0;6.1;7.0;7.5;8.0;8.6+PTX" \
-    pip install -e .
-
 # Clone and setup BDAI
 RUN git clone https://github.com/bdaiinstitute/bdai.git /workspaces/bdai
 WORKDIR /workspaces/bdai
@@ -61,7 +41,7 @@ RUN bdai update --force
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && bdai build-packages video_tools -n -1"
 RUN /bin/bash -c "source /opt/ros/humble/setup.bash && bdai build-packages equidiff_ros data_collection -n -1"
 
-# Add important environment setup from the second Dockerfile
+# Add important environment setup
 RUN echo ". /opt/ros/humble/setup.sh" >> $ROOT_HOME/.profile
 RUN echo ". $BDAI/_build/install/local_setup.sh" >> $ROOT_HOME/.profile
 ENV BASH_ENV="/root/.profile"
@@ -69,5 +49,14 @@ ENV BASH_ENV="/root/.profile"
 # Setup library path
 ENV LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/usr/lib/x86_64-linux-gnu/"
 RUN ldconfig /usr/lib/x86_64-linux-gnu/
+
+WORKDIR /tmp
+RUN pip uninstall -y torch torchvision pytorch3d && \
+    pip install torch==2.1.0+cu121 torchvision==0.16.0+cu121 -f https://download.pytorch.org/whl/torch_stable.html && \
+    pip install 'fvcore<0.1.6' 'iopath<0.1.11' && \
+    git clone https://github.com/facebookresearch/pytorch3d.git && \
+    cd pytorch3d && \
+    git checkout v0.7.7 && \
+    FORCE_CUDA=1 python setup.py develop
 
 CMD [ "bash" ]
